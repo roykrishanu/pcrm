@@ -1,0 +1,78 @@
+services:
+  - type: web
+    name: pcrm-backend
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - key: SECRET_KEY
+        generateValue: true
+      - key: ENV
+        value: production
+      - key: DEBUG
+        value: "false"
+      - key: DATABASE_URL
+        fromDatabase:
+          name: pcrm-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: pcrm-redis
+          property: connectionString
+      - key: CELERY_BROKER_URL
+        fromService:
+          type: redis
+          name: pcrm-redis
+          property: connectionString
+      - key: CELERY_RESULT_BACKEND
+        fromService:
+          type: redis
+          name: pcrm-redis
+          property: connectionString
+      - key: CORS_ORIGINS
+        value: '["https://CHANGE-ME.vercel.app"]'
+      - key: FRONTEND_URL
+        value: https://CHANGE-ME.vercel.app
+    dockerCommand: sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000"
+
+  - type: worker
+    name: pcrm-worker
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    plan: free
+    envVars:
+      - key: SECRET_KEY
+        sync: false
+      - key: DATABASE_URL
+        fromDatabase:
+          name: pcrm-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: pcrm-redis
+          property: connectionString
+      - key: CELERY_BROKER_URL
+        fromService:
+          type: redis
+          name: pcrm-redis
+          property: connectionString
+      - key: CELERY_RESULT_BACKEND
+        fromService:
+          type: redis
+          name: pcrm-redis
+          property: connectionString
+    dockerCommand: celery -A app.workers.celery_app worker --loglevel=info
+
+  - type: redis
+    name: pcrm-redis
+    plan: free
+    ipAllowList: []
+
+databases:
+  - name: pcrm-db
+    plan: free
